@@ -59,11 +59,12 @@ def notears_linear(X, lambda1, loss_type, max_iter=100, h_tol=1e-8, rho_max=1e+1
         W = _adj(w)
         loss, G_loss = _loss(W)
         h, G_h = _h(W)
-        obj = loss + 0.5 * rho * h * h + alpha * h + lambda1 * w.sum()
+        obj = loss + 0.5 * rho * h * h + alpha * h + lambda1 * w.sum() # function 15
         G_smooth = G_loss + (rho * h + alpha) * G_h
         g_obj = np.concatenate((G_smooth + lambda1, - G_smooth + lambda1), axis=None)
         return obj, g_obj
-
+    ls_max=[]
+    ls_min=[]
     n, d = X.shape
     w_est, rho, alpha, h = np.zeros(2 * d * d), 1.0, 0.0, np.inf  # double w_est into (w_pos, w_neg)
     bnds = [(0, 0) if i == j else (0, None) for _ in range(2) for i in range(d) for j in range(d)]
@@ -80,11 +81,16 @@ def notears_linear(X, lambda1, loss_type, max_iter=100, h_tol=1e-8, rho_max=1e+1
             else:
                 break
         w_est, h = w_new, h_new
+
         alpha += rho * h
         if h <= h_tol or rho >= rho_max:
             break
+    print('w_est: ', w_est)
     W_est = _adj(w_est)
+    print('W_est 1: ', W_est)
     W_est[np.abs(W_est) < w_threshold] = 0
+    print('W_est 2: ', W_est)
+
     return W_est
 
 def train_sachs(gt_path, dataset_path):
@@ -106,28 +112,29 @@ if __name__ == '__main__':
     from notears import utils
     utils.set_random_seed(15)
 
-    # n, d, s0, graph_type, sem_type = 100, 20, 20, 'ER', 'gauss'
-    # B_true = utils.simulate_dag(d, s0, graph_type)
-    # print("B_true shape: ", B_true.shape)
-    # print("B true: ", B_true)
-    # W_true = utils.simulate_parameter(B_true)
-    # print('shape W_true: ', W_true.shape)
-    # print("W true: ", W_true)
-    # np.savetxt('W_true.csv', W_true, delimiter=',')
+    n, d, s0, graph_type, sem_type = 100, 20, 20, 'ER', 'gauss'
+    B_true = utils.simulate_dag(d, s0, graph_type)
+    print("B_true shape: ", B_true.shape)
+    print("B true: ", B_true)
+    W_true = utils.simulate_parameter(B_true)
+    print('shape W_true: ', W_true.shape)
+    print("W true: ", W_true)
+    np.savetxt('W_true.csv', W_true, delimiter=',')
 
-    # X = utils.simulate_linear_sem(W_true, n, sem_type)
-    # print("shape X: ", X.shape)
-    # print('X: ', X)
-    # np.savetxt('X.csv', X, delimiter=',')
+    X = utils.simulate_linear_sem(W_true, n, sem_type)
+    print("shape X: ", X.shape)
+    print('X: ', X)
+    np.savetxt('X.csv', X, delimiter=',')
 
-    # W_est = notears_linear(X, lambda1=0.1, loss_type='l2')
-    # assert utils.is_dag(W_est)
-    # np.savetxt('W_est.csv', W_est, delimiter=',')
-    # acc = utils.count_accuracy(B_true, W_est != 0)
-    # print(acc)
+    W_est = notears_linear(X, lambda1=0.1, loss_type='l2')
+    print("W_est: ", W_est != 0)
+    assert utils.is_dag(W_est)
+    np.savetxt('W_est.csv', W_est, delimiter=',')
+    acc = utils.count_accuracy(B_true, W_est != 0)
+    print(acc)
     
     
-    gt_path='/workspace/tripx/projects/causality/notears/gt.xls'
-    dataset_path='/dataset/Causal_Protein_Signaling/'
-    train_sachs(gt_path, dataset_path)
+    # gt_path='/workspace/tripx/projects/causality/notears/gt.xls'
+    # dataset_path='/dataset/Causal_Protein_Signaling/'
+    # train_sachs(gt_path, dataset_path)
     

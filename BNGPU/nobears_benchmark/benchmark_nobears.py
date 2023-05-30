@@ -22,8 +22,9 @@ import pandas as pd
 if __name__ == '__main__':
     benreader = benchmark_data_reader.BenchmarkReader()
     res = []
-
+    # print("Here")
     for i in benreader.get_dataset_name():
+        print("Name: ", i)
         data = benreader.read_data(i)
         W_true = data.W
 
@@ -72,3 +73,4 @@ if __name__ == '__main__':
         df_res.to_csv('results/NOBEARS_benchmark_result.csv', index = False)
 
         np.savez('W_est/NOBEARS_%s.npz' % i.replace('/', '_'), W_est=W_est, W_est_init = W_est_init)
+        break

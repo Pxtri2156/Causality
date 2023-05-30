@@ -56,10 +56,15 @@ def simulate_random_dag(d: int,
     # random permutation
     P = np.random.permutation(np.eye(d, d))  # permutes first axis only
     B_perm = P.T.dot(B).dot(P)
+    # print("B_perm: ", B_perm)
+    # input("Stop")
     U = np.random.uniform(low=w_range[0], high=w_range[1], size=[d, d])
     U[np.random.rand(d, d) < 0.5] *= -1
     W = (B_perm != 0).astype(float) * U
+    # print("W: ", W)
     G = nx.DiGraph(W)
+    # print("G graph: ", G.graph)
+    # input("Stop")
     return G
 
 
@@ -136,7 +141,7 @@ def count_accuracy(G_true: nx.DiGraph,
                    G_und: nx.DiGraph = None) -> tuple:
     """Compute FDR, TPR, and FPR for B, or optionally for CPDAG B + B_und.
 
-    Args:
+    Args:   
         G_true: ground truth graph
         G: predicted graph
         G_und: predicted undirected edges in CPDAG, asymmetric
@@ -149,6 +154,7 @@ def count_accuracy(G_true: nx.DiGraph,
         nnz: prediction positive
     """
     B_true = nx.to_numpy_array(G_true) != 0
+    # print("B_true: ", B_true)
     B = nx.to_numpy_array(G) != 0
     B_und = None if G_und is None else nx.to_numpy_array(G_und)
     d = B.shape[0]
@@ -342,6 +348,7 @@ def read_BNrep(args):
     # read text files
     file_pattern = data_dir +"*_s*_v*.txt"
     all_files = glob.iglob(file_pattern)
+    print('all_files: ', all_files)
     for file in all_files:
         match = re.search('/([\w]+)_s([\w]+)_v([\w]+).txt', file)
         dataset, samplesN, version = match.group(1), match.group(2),match.group(3)
@@ -356,7 +363,7 @@ def read_BNrep(args):
     # read ground truth graph
     from os import listdir
 
-    file_pattern = data_dir + "*_graph.txt"
+    file_pattern = data_dir + "*    "
     files = glob.iglob(file_pattern)
     for f in files:
         graph = np.loadtxt(f, skiprows =0, dtype=np.int32)
@@ -372,6 +379,7 @@ def load_data_discrete(args, batch_size=1000, suffix='', debug = False):
         # generate data
         G = simulate_random_dag(d, degree, graph_type)
         X = simulate_sem(G, n, sem_type)
+
 
     elif args.data_type == 'discrete':
         # get benchmark discrete data
@@ -410,9 +418,13 @@ def load_data(args, batch_size=1000, suffix='', debug = False):
         # generate data
         G = simulate_random_dag(d, degree, graph_type)
         X = simulate_sem(G, n, x_dims, sem_type, linear_type)
-
+        print("X: ", X)
+        print("X shape: ", X.shape)
+        # input("Stop")
+        
     elif args.data_type == 'discrete':
         # get benchmark discrete data
+        
         if args.data_filename.endswith('.pkl'):
             with open(os.path.join(args.data_dir, args.data_filename), 'rb') as handle:
                 X = pickle.load(handle)
@@ -420,24 +432,52 @@ def load_data(args, batch_size=1000, suffix='', debug = False):
             all_data, graph = read_BNrep(args)
             G = nx.DiGraph(graph)
             X = all_data['1000']['1']
+    elif args.data_type == 'discrete_benchmark':
+        # Read data
+        dataset_path = os.path.join(args.data_dir, args.data_filename)
+        X = read_data_csv(dataset_path)
+        print("X shape: ", X.shape)
+        print("X: ", X)
+        # Read ground truth 
+        gt = pd.read_csv(args.gt_path, header=None)
+        print("gt: ", gt.shape)
+        print("gt: ", gt)
+        args.data_variable_size=gt.shape[0]
+        G = nx.from_pandas_adjacency(gt)
 
 
     feat_train = torch.FloatTensor(X)
     feat_valid = torch.FloatTensor(X)
     feat_test = torch.FloatTensor(X)
+    if args.cuda:
+        feat_train.to(torch.device("cuda:0"))
+        feat_valid.to(torch.device("cuda:0"))
+        feat_test.to(torch.device("cuda:0"))
 
     # reconstruct itself
     train_data = TensorDataset(feat_train, feat_train)
     valid_data = TensorDataset(feat_valid, feat_train)
     test_data = TensorDataset(feat_test, feat_train)
-
+    
     train_data_loader = DataLoader(train_data, batch_size=batch_size)
     valid_data_loader = DataLoader(valid_data, batch_size=batch_size)
     test_data_loader = DataLoader(test_data, batch_size=batch_size)
-
+    # if args.cuda:
+        # train_data.train_data.to(torch.device("cuda:0"))  # put data into GPU entirely
+        # train_data.train_labels.to(torch.device("cuda:0"))
     return train_data_loader, valid_data_loader, test_data_loader, G
 
-
+def read_data_csv(data_path):
+    X = pd.read_csv(data_path) ## Need to preprocessing
+    # df[cat_columns] = df[cat_columns].apply(lambda x: x.cat.codes)
+    cat_columns = X.select_dtypes(['object']).columns
+    X[cat_columns] = X[cat_columns].apply(lambda x: pd.factorize(x)[0])
+    bool_columns = X.select_dtypes(['boolean']).columns
+    X[bool_columns] = X[bool_columns].replace({True: 1, False: 0})
+    X = X.to_numpy()
+    X = np.expand_dims(X, axis=2)
+    return X
+        
 def to_2d_idx(idx, num_cols):
     idx = np.array(idx, dtype=np.int64)
     y_idx = np.array(np.floor(idx / float(num_cols)), dtype=np.int64)
@@ -617,11 +657,15 @@ def preprocess_adj(adj):
     return adj_normalized
 
 def preprocess_adj_new(adj):
-    adj_normalized = (torch.eye(adj.shape[0]).double() - (adj.transpose(0,1)))
+    # print('adj: ', adj.device)
+    # print(torch.eye(adj.shape[0]).double().device)
+    adj_normalized = (torch.eye(adj.shape[0]).double().cuda() - (adj.transpose(0,1))).cuda()
+    # print(adj_normalized.device)
+    # input("Stop 1")
     return adj_normalized
 
 def preprocess_adj_new1(adj):
-    adj_normalized = torch.inverse(torch.eye(adj.shape[0]).double()-adj.transpose(0,1))
+    adj_normalized = torch.inverse(torch.eye(adj.shape[0]).double().cuda()-adj.transpose(0,1).cuda()) #changed
     return adj_normalized
 
 def isnan(x):
@@ -655,7 +699,7 @@ def sparse_to_tuple(sparse_mx):
 
 
 def matrix_poly(matrix, d):
-    x = torch.eye(d).double()+ torch.div(matrix, d)
+    x = torch.eye(d).double().cuda()+ torch.div(matrix, d).cuda()
     return torch.matrix_power(x, d)
 
 

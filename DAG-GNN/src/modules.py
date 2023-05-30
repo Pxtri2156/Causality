@@ -45,7 +45,6 @@ class MLPEncoder(nn.Module):
 
         # adj_Aforz = I-A^T
         adj_Aforz = preprocess_adj_new(adj_A1)
-
         adj_A = torch.eye(adj_A1.size()[0]).double()
         H1 = F.relu((self.fc1(inputs)))
         x = (self.fc2(H1))

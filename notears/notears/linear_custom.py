@@ -61,7 +61,7 @@ def notears_linear(X, lambda1, loss_type, max_iter=100, h_tol=1e-8, rho_max=1e+1
         W = _adj(w)
         loss, G_loss = _loss(W)
         h, G_h = _h(W)
-        obj = loss + 0.5 * rho * h * h + alpha * h + lambda1 * w.sum()
+        obj = loss + 0.5 * rho * h * h + alpha * h + lambda1 * w.sum() # function 15
         G_smooth = G_loss + (rho * h + alpha) * G_h
         g_obj = np.concatenate((G_smooth + lambda1, - G_smooth + lambda1), axis=None)
         return obj, g_obj
